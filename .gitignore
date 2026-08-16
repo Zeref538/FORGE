@@ -1,0 +1,35 @@
+# Kaggle kernel outputs: keep the small .md result reports (they ARE the
+# research record for this project), drop everything else -- the normalized
+# image sets and model checkpoints run to ~5GB and are all reproducible by
+# re-running the kernels.
+**/output/*
+!**/output/*.md
+
+# Downloaded / generated image data
+**/normalized/
+**/normalized_new/
+*.zip
+
+# Model weights and exports. web/model/ is the exception -- see below.
+*.pt
+*.pth
+*.onnx
+*.onnx.data
+!web/model/*.onnx
+
+# Browser-automation screenshots from local testing
+.playwright-mcp/
+
+# Local tool settings, not project config
+.claude/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
