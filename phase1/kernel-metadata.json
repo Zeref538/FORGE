@@ -1,0 +1,20 @@
+{
+  "id": "johnandreimartinez/forge-phase1-manifest",
+  "title": "forge-phase1-manifest",
+  "code_file": "phase1_manifest.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_internet": false,
+  "dataset_sources": [
+    "cartografia/unbiased-tiny-genimage",
+    "troykueh/real-vs-fake-faces-stylegan3",
+    "selfishgene/sfhq-t2i-synthetic-faces-from-text-2-image-models",
+    "kshitizbhargava/deepfake-face-images",
+    "rhythmghai/ai-vs-real-images-dataset",
+    "doctorstrange420/real-and-fake-ai-generated-art-images-dataset"
+  ],
+  "competition_sources": [],
+  "kernel_sources": []
+}
