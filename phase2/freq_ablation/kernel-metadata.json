@@ -1,0 +1,15 @@
+{
+  "id": "johnandreimartinez/forge-phase2-freq-ablation",
+  "title": "forge-phase2-freq-ablation",
+  "code_file": "phase2_train_freq.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "dataset_sources": [
+    "johnandreimartinez/forge-normalized-v1"
+  ],
+  "competition_sources": [],
+  "kernel_sources": []
+}
