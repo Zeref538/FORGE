@@ -1,0 +1,20 @@
+# Cloudflare Pages / Netlify caching rules.
+#
+# The model is 15MB and only changes when it is retrained, so let browsers
+# keep it for a year. Without this every page load re-downloads it.
+# "immutable" tells the browser not to even ask whether it changed.
+#
+# If the model is ever retrained, rename the file (forge_model_v2.onnx) so
+# visitors holding a cached copy pick up the new one. Re-uploading under the
+# same name would leave them on the old model for up to a year.
+/model/forge_model.onnx
+  Cache-Control: public, max-age=31536000, immutable
+
+# Calibration is tiny and paired with the model - keep it short so a fix
+# here lands quickly.
+/model/calibration.json
+  Cache-Control: public, max-age=3600
+
+# Always re-check the page itself, so edits appear immediately.
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
