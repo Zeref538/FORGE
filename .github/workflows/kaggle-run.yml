@@ -1,0 +1,140 @@
+# Runs a FORGE training kernel on Kaggle from GitHub's servers, waits for it
+# to finish, and commits the result report back to this repo. Nothing needs
+# to be running on a local machine.
+
+name: Kaggle run
+
+on:
+  # Manual button in the Actions tab. Works any day, including Sunday.
+  workflow_dispatch:
+    inputs:
+      kernel_dir:
+        description: "Directory holding kernel-metadata.json"
+        required: true
+        default: phase2/final_model
+        type: choice
+        options:
+          - phase1
+          - phase2
+          - phase2/final_model
+          - phase2/backbone_compare
+          - phase2/stability_check
+      timeout_minutes:
+        description: "Give up waiting after this many minutes"
+        required: false
+        default: "180"
+
+  # 01:00 UTC = 09:00 Manila. Day field 1-6 is Mon-Sat, so Sunday never runs.
+  schedule:
+    - cron: "0 1 * * 1-6"
+
+# One run at a time. Two overlapping runs would push the same kernel twice
+# and burn double the Kaggle compute for one result.
+concurrency:
+  group: kaggle-run
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  run-kernel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Kaggle CLI
+        run: pip install --quiet kaggle
+
+      - name: Resolve which kernel to run
+        id: pick
+        env:
+          INPUT_DIR: ${{ inputs.kernel_dir }}
+        run: |
+          # Scheduled runs have no inputs, so fall back to the shipping model.
+          DIR="${INPUT_DIR:-phase2/final_model}"
+          META="$DIR/kernel-metadata.json"
+          if [ ! -f "$META" ]; then
+            echo "::error::No kernel-metadata.json in $DIR"
+            exit 1
+          fi
+          KERNEL_ID=$(python -c "import json;print(json.load(open('$META'))['id'])")
+          echo "dir=$DIR"        >> "$GITHUB_OUTPUT"
+          echo "id=$KERNEL_ID"   >> "$GITHUB_OUTPUT"
+          echo "Running $KERNEL_ID from $DIR"
+
+      - name: Push kernel to Kaggle
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: kaggle kernels push -p "${{ steps.pick.outputs.dir }}"
+
+      - name: Wait for it to finish
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+          KERNEL_ID: ${{ steps.pick.outputs.id }}
+          TIMEOUT_MIN: ${{ inputs.timeout_minutes || '180' }}
+        run: |
+          deadline=$(( $(date +%s) + TIMEOUT_MIN * 60 ))
+          sleep 30
+          while :; do
+            status=$(kaggle kernels status "$KERNEL_ID" 2>&1 || true)
+            echo "$(date -u +%H:%M:%S)  $status"
+
+            case "$status" in
+              *complete*|*COMPLETE*)
+                echo "finished"; exit 0 ;;
+              *error*|*ERROR*|*cancel*|*CANCEL*)
+                echo "::error::Kernel ended badly: $status"; exit 1 ;;
+            esac
+
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::Still running after ${TIMEOUT_MIN}m. Kaggle keeps going; re-run this workflow later to collect the output."
+              exit 1
+            fi
+            sleep 60
+          done
+
+      - name: Download results
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          OUT="${{ steps.pick.outputs.dir }}/output"
+          mkdir -p "$OUT"
+          kaggle kernels output "${{ steps.pick.outputs.id }}" -p "$OUT" --force
+          echo "--- reports produced ---"
+          find "$OUT" -name "*.md" -exec echo "{}" \; -exec cat {} \;
+
+      - name: Commit the report
+        run: |
+          # .gitignore keeps model weights and images out; only .md reports
+          # are trackable, which is exactly what we want committed.
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No report changes - nothing to commit."
+            exit 0
+          fi
+
+          # Commit as the repo owner so it counts on the contribution graph.
+          # Commits authored by github-actions[bot] do not.
+          git config user.name  "Zeref538"
+          git config user.email "martinezjandrei8425@gmail.com"
+
+          KERNEL="${{ steps.pick.outputs.id }}"
+          # Two -m flags: git joins them with a blank line, which avoids
+          # embedding a newline inside this YAML block.
+          git commit \
+            -m "Update results from ${KERNEL##*/}" \
+            -m "Automated Kaggle run. See the report diff for the measured numbers."
+          git push
