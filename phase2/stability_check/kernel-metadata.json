@@ -1,0 +1,15 @@
+{
+  "id": "johnandreimartinez/forge-phase2-stability-check",
+  "title": "forge-phase2-stability-check",
+  "code_file": "phase2_train_stability.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "dataset_sources": [
+    "johnandreimartinez/forge-normalized-v1"
+  ],
+  "competition_sources": [],
+  "kernel_sources": []
+}
