@@ -11,14 +11,14 @@ on:
       kernel_dir:
         description: "Directory holding kernel-metadata.json"
         required: true
-        default: phase2/final_model
+        default: ml/phase2/final_model
         type: choice
         options:
-          - phase1
-          - phase2
-          - phase2/final_model
-          - phase2/backbone_compare
-          - phase2/stability_check
+          - ml/phase1
+          - ml/phase2
+          - ml/phase2/final_model
+          - ml/phase2/backbone_compare
+          - ml/phase2/stability_check
       timeout_minutes:
         description: "Give up waiting after this many minutes"
         required: false
@@ -60,7 +60,7 @@ jobs:
           INPUT_DIR: ${{ inputs.kernel_dir }}
         run: |
           # Scheduled runs have no inputs, so fall back to the shipping model.
-          DIR="${INPUT_DIR:-phase2/final_model}"
+          DIR="${INPUT_DIR:-ml/phase2/final_model}"
           META="$DIR/kernel-metadata.json"
           if [ ! -f "$META" ]; then
             echo "::error::No kernel-metadata.json in $DIR"

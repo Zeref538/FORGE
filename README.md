@@ -1,155 +1,175 @@
 # FORGE — Fake Or Real: Generated-image Examiner
 
-Drop in an image, get a probability that it was made by an AI image
-generator rather than a camera. The model runs **entirely in your browser** —
-the image is never uploaded anywhere.
+Drop in an image, get a probability that an AI generator made it rather than
+a camera. **The model runs entirely in your browser** — the image is never
+uploaded, there is no server, and hosting costs nothing.
 
-The interesting part of this project is not the accuracy number. It is the
-evaluation: what happens when the detector meets a generator it was never
-trained on, and what happened when a promising result turned out not to
-reproduce.
+The point of this project is not the accuracy number. It is the evaluation:
+what happens when the detector meets a generator it was never trained on,
+and what happened when a promising result turned out not to reproduce.
 
 ---
 
-## What it does
+## Quick start
 
-| | |
+```bash
+git clone https://github.com/Zeref538/FORGE.git
+cd FORGE/web
+python -m http.server 8000     # then open http://localhost:8000
+```
+
+No build step, no npm install. The site is plain HTML, CSS and JavaScript.
+
+> Opening `index.html` directly by double-clicking will not work — browsers
+> block `file://` pages from loading the model. Any local server fixes it.
+
+## Repo layout
+
+```
+web/     the site — HTML, CSS, JS, and the deployed model
+ml/      training and evaluation code (Kaggle kernels)
+docs/    project brief, portfolio write-up, contributor handoffs
+```
+
+| If you want to… | Read |
 |---|---|
-| **Input** | any JPG / PNG / WebP image |
-| **Output** | probability the image is AI-generated, plus an explicit *uncertain* verdict when the evidence does not support a confident call |
-| **Where it runs** | in the browser, via ONNX Runtime Web (~6 MB model) |
-| **Cost to host** | nothing — static files, no server |
+| work on the site or deploy it | [`docs/FRONTEND_HANDOFF.md`](docs/FRONTEND_HANDOFF.md) |
+| understand the research arc | [`docs/PORTFOLIO_CARD.md`](docs/PORTFOLIO_CARD.md) |
+| see the original goals | [`docs/PROJECT_BRIEF.md`](docs/PROJECT_BRIEF.md) |
 
-## How accurate it actually is
+---
 
-Trained on 11 generator families. Every number below is on a test slice the
-model never trained on, reported per family and **never pooled into one
-flattering figure**.
+## How accurate it is
+
+EfficientNet-B0, trained on 13 generator families. Every figure below is a
+test slice the model never trained on, reported per family, **never pooled
+into one flattering number**.
 
 | generator | accuracy |
 |---|---:|
 | BigGAN | 100.0% |
-| SFHQ-T2I | 98.9% |
-| GLIDE | 98.9% |
-| StyleGAN / StyleGAN2 | 97.9% |
-| VQDM | 96.8% |
-| Stable Diffusion 1.5 | 94.9% |
-| Wukong | 93.9% |
-| ADM | 92.8% |
-| Midjourney | 92.0% |
-| **real photographs** | **86.5%** |
-| **StyleGAN3** | **70.9%** |
+| GLIDE | 99.5% |
+| SFHQ-T2I | 98.7% |
+| VQDM | 97.3% |
+| Wukong | 97.3% |
+| StyleGAN / StyleGAN2 | 96.8% |
+| Stable Diffusion 1.5 | 96.5% |
+| ADM | 95.7% |
+| **real photographs** | **94.6%** |
+| Midjourney | 93.3% |
+| AI artwork | 86.9% |
+| **StyleGAN3** | **51.5%** |
 
-**Overall: 92.5%**
+**Overall: 92.7%**
 
-The weakest number is the one that matters most: **roughly 1 in 7 genuine
-photos gets called AI-generated.** That is the wrong direction for this
-error to run — wrongly accusing a real photo is worse than missing a fake.
-The cause is a training set with about 5x more AI images than real ones.
+Two of those deserve to be read carefully.
 
-It also degrades under recompression, measured rather than assumed:
+**Real photographs, 94.6%** means roughly **1 in 19 genuine photos is
+wrongly called AI-generated.** That is the wrong direction for the error to
+run — falsely accusing a real photo is worse than missing a fake.
 
-| JPEG quality | accuracy |
-|---|---:|
-| original | 93.3% |
-| q95 | 93.2% |
-| q75 | 93.0% |
-| q50 | 89.9% |
-| q25 | 85.3% |
-
----
+**StyleGAN3, 51.5%** is a coin flip, on a family the model *did* train on.
 
 ## The finding
 
-The project's original setup deliberately **hid two generator families from
-training entirely**, to answer a harder question than "is it accurate":
-*what happens when someone uses a generator that did not exist when this was
-trained?*
+The original setup deliberately **hid two generator families from training**
+to answer a harder question than "is it accurate": *what happens when
+someone uses a generator that did not exist when this shipped?*
 
-The answer was brutal. On a held-out GAN family, accuracy was **0.000** —
-not "poor", zero. All 2,500 fake faces called real.
+The answer was **0.000**. Not "poor" — zero. All 2,500 fakes called real.
 
-Six attempts to fix it, each measured:
+Six attempts to fix it:
 
-| attempt | held-out GAN accuracy |
+| attempt | accuracy on the unseen family |
 |---|---:|
 | baseline | 0.000 |
 | higher input resolution | 0.000 |
 | frequency-domain (FFT) input channel | 0.000 |
 | blur + JPEG augmentation (Wang et al. 2020) | 0.000 |
 | CLIP frozen features (Ojha et al. 2023) | 0.003 |
-| **adding a related GAN family to training** | **0.365** |
+| adding a related GAN family to training | 0.365 |
 
-The sixth appeared to work. **It did not reproduce.**
+The last one appeared to work, and **was published to the site.**
 
-Re-running it while logging accuracy after *every* training epoch instead of
-trusting the single saved checkpoint showed the number swinging between
-**0.005 and 0.305** on identical data. The reported 0.365 never appeared
-again, and the epoch that checkpoint-selection would actually have picked
-scored 0.034.
+**It did not reproduce.** Re-running while logging accuracy after *every*
+training epoch — instead of trusting the single saved checkpoint — showed
+the number swinging between **0.005 and 0.305** on identical data. The 0.365
+never appeared again, and the checkpoint the selection rule would actually
+have kept scored 0.034.
 
-The cause is structural: checkpoints are selected on validation accuracy,
-and the validation set only contains families the model trained on. The
-selection process is **blind to the exact thing the project was measuring.**
+The cause is structural: checkpoints are chosen by validation accuracy, and
+the validation set only contains families the model trained on. The
+selection process is blind to the exact thing being measured. The site was
+corrected to report a range.
 
-Three follow-ups asked whether the tool could at least fail *honestly*
-instead of accurately. None worked:
+Three follow-ups asked whether the tool could at least *fail honestly*
+instead. None worked:
 
-- **Averaging epoch checkpoints** erased the one good epoch instead of
-  reinforcing it — so that epoch was luck, not a skill being learned.
+- **Averaging checkpoints** erased the good epoch instead of reinforcing it,
+  which confirms it was luck rather than a skill being learned.
 - **The model's own calibrated confidence** is *confidently wrong* 58.2% of
-  the time on the held-out family, and says "uncertain" on only 10.5%.
-- **Novelty detection** (twice — on model features, and on radial frequency
-  spectra) flagged under 0.5% of held-out images versus 9.7% of ordinary
-  ones. Measured reason: the held-out images sit *closer* to the training
-  data than ordinary test images do. They are aligned, evenly-lit face
-  crops — more uniform than the training mix. "Does this look unusual?" is
-  the wrong question, because a good fake does not look unusual.
+  the time on the unseen family, and says "uncertain" on only 10.5%.
+- **Novelty detection** (twice — on model features, then on radial frequency
+  spectra) flagged under 0.5% of unseen-generator images, versus 9.7% of
+  ordinary ones. The measured reason: those images sit *closer* to the
+  training data than ordinary photos do. A well-made fake face does not look
+  unusual — that is the point of it.
 
-**The honest conclusion:** generalizing to an unseen generator architecture
-is unsolved here, and unsolved in the literature too — the paper this
-compares against reports its CNN dropping to near coin-flip on unseen
-architectures. What fixed it was not a training trick. It was showing the
-model examples of that architecture. The shipped model does exactly that,
-which is why StyleGAN3 above reads 70.9% instead of 0.000.
+**Conclusion:** generalising to an unseen generator architecture is unsolved
+here, and unsolved in the literature — the paper this compares against
+reports its CNN dropping to near coin-flip on unseen architectures too. No
+training trick fixed it. What worked was showing the model examples of that
+architecture, which is why the shipped model trains on all 13 families.
 
----
+That works for generators that exist today. It says nothing about the next
+one.
 
-## Layout
+## Model choice
 
-```
-phase0/            feasibility gate — runs before any GPU spend
-phase1/            data pipeline: normalization, manifest, splits
-  test_labeling.py regression test for real/fake labeling
-phase2/            training, calibration, ONNX export, evaluation
-  */output/*.md    result report from every experiment, kept as the record
-  final_model/     the shipped model (trained on all families)
-  stability_check/ the per-epoch measurement that caught the overclaim
-web/               the browser app + deployed model
-```
+Three backbones trained on identical data:
+
+| backbone | params | accuracy | download | train time |
+|---|---:|---:|---:|---:|
+| MobileNetV3-Small | 1.5M | 90.1% | 6.1 MB | 30 min |
+| **EfficientNet-B0** ← shipped | 4.0M | **92.7%** | 16.0 MB | 130 min |
+| ResNet-50 | 23.5M | 90.2% | 94.0 MB | 273 min |
+
+Bigger is not automatically better. ResNet-50 costs 6× the download for no
+accuracy gain — its training accuracy was still climbing when the run
+ended, so at 3 epochs it is undertrained rather than outclassed. Either way
+94 MB is too large to send to a browser.
+
+## Data
+
+Public Kaggle datasets only — nothing scraped, no personal photos. About
+36,000 images across 13 generator families. Sources are listed in
+[`docs/FRONTEND_HANDOFF.md`](docs/FRONTEND_HANDOFF.md#8-where-the-data-came-from).
+
+Every image is re-encoded to identical size and JPEG quality before
+training. That fixed a real shortcut: real photos were mostly small PNGs and
+fakes mostly large JPEGs, so a model could score well by recognising the
+file format instead of the image.
 
 ## Reproducing
 
-Training runs on [Kaggle](https://www.kaggle.com) (free CPU/GPU). Each
-directory holds a `kernel-metadata.json` naming its datasets.
+Training runs on Kaggle. Each directory under `ml/` holds a
+`kernel-metadata.json` naming its datasets.
 
 ```bash
-# build the normalized dataset + manifest
-cd phase1 && python -m kaggle kernels push
-
-# always run before pushing a manifest change --
-# catches label-inversion bugs in about a second
-python test_labeling.py
-
-# train the shipping model
+cd ml/phase1 && python -m kaggle kernels push     # build the dataset
+python test_labeling.py                            # ALWAYS run before pushing
 cd ../phase2/final_model && python -m kaggle kernels push
-
-# calibrate + export to ONNX, locally
-cd .. && python calibrate_and_export.py
-
-# serve the web app
-cd ../web && python -m http.server 8000
+cd .. && python calibrate_efficientnet.py          # calibrate + write calibration.json
 ```
+
+`test_labeling.py` takes about a second and exists because three separate
+bugs silently inverted real/fake labels — one dataset stores AI images in a
+folder named `nature`, which was in the real-photo hint list. None of them
+crashed; all of them would have trained on wrong labels.
+
+There is also a GitHub Action (`.github/workflows/kaggle-run.yml`) that runs
+a kernel, waits, and commits the report back — so training does not need a
+machine left switched on.
 
 ## What this tool cannot tell you
 
@@ -161,3 +181,8 @@ cd ../web && python -m http.server 8000
   confident-sounding number on them is still a guess.
 - A missing content credential means the platform stripped it, not that the
   image is synthetic.
+
+## Contributors
+
+- [@Zeref538](https://github.com/Zeref538) — ML, data pipeline, evaluation
+- [@Tinenen-cs](https://github.com/Tinenen-cs) — frontend

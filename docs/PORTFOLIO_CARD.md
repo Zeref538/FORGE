@@ -174,36 +174,49 @@ instead of a flattering pooled accuracy score.
 
 ## Shape of the build
 
-- MobileNetV3-Small, ONNX-exported, runs entirely in the browser via ONNX
-  Runtime Web — nothing uploaded, verified end-to-end in a live test.
-- Temperature-scaled calibration + an evidence-based "uncertain" band, not
-  forced real/fake.
-- Trained on 10 generator families (8 diffusion/GenImage + StyleGAN/2 +
-  BigGAN), StyleGAN3 and SFHQ-T2I held out entirely for the generalization
-  numbers above.
-- Degradation curve measured (not assumed): accuracy holds from 0.933
-  (original) to 0.853 at heavy JPEG recompression (q25) — a real decline,
-  reported as-is rather than smoothed over.
-- ₱0 cost: Kaggle for data/training, static hosting for the site.
+- EfficientNet-B0, ONNX-exported at 16 MB, runs entirely in the browser via
+  ONNX Runtime Web — nothing uploaded, verified end-to-end in a live test.
+  Chosen over MobileNetV3-Small (6 MB, 90.1%) and ResNet-50 (94 MB, 90.2%)
+  in a three-way comparison on identical data; ResNet-50 cost 6x the
+  download for no accuracy gain and was rejected.
+- Trained on 13 generator families, about 36,000 images, all public Kaggle
+  datasets.
+- Temperature-scaled calibration fitted against the ONNX export rather than
+  the PyTorch checkpoint, so it applies to exactly what ships. T=1.334,
+  ECE 0.0206 -> 0.0054.
+- An evidence-based "uncertain" band rather than a forced real/fake call.
+- Degradation curve measured, not assumed (currently pending
+  re-measurement for the new backbone — flagged as such on the site).
+- ₱0 cost: Kaggle for training, static hosting for the site, no backend
+  and no inference server.
+
+## Current accuracy
+
+| generator | accuracy |
+|---|---:|
+| BigGAN | 1.000 |
+| GLIDE | 0.995 |
+| SFHQ-T2I | 0.987 |
+| VQDM | 0.973 |
+| Wukong | 0.973 |
+| StyleGAN / StyleGAN2 | 0.968 |
+| Stable Diffusion 1.5 | 0.965 |
+| ADM | 0.957 |
+| **real photographs** | **0.946** |
+| Midjourney | 0.933 |
+| AI artwork | 0.869 |
+| **StyleGAN3** | **0.515** |
+
+**Overall 0.927.** The two bolded rows are the honest weak points: roughly
+1 in 19 genuine photos is still called AI-generated, and one trained-on
+family sits at a coin flip.
 
 ## Open items before this is publish-ready
 
-- Six ablations complete (resolution, frequency channel, augmentation,
-  CLIP x2, real GAN data), plus the stability check that turned the sixth
-  result from a single number into an honest range. See table above.
-- The shipped model's held-out numbers are currently reported as ranges
-  (StyleGAN3 ~0.5-31%, SFHQ-T2I ~28-71%), not single points, because
-  single-epoch measurement was shown to be unreliable. A better fix than
-  reporting a range: change model selection to track held-out accuracy
-  during training (not just validation accuracy) and pick a checkpoint on
-  that basis, or report an average across several seeds. Not yet done.
-- Two more data-recipe experiments (a larger single-source StyleGAN dose,
-  and two StyleGAN sources at equal size) were run and produced results
-  worth noting only as an aside: neither beat the original small single
-  dose, but both ran on data later found to be affected by the mounting
-  bug described above, before the fix was verified clean. Not reliable
-  enough to report as findings; would need rerunning on verified-clean data
-  to mean anything.
-- Saliency heatmap: not implemented (panel currently shows the resized
-  input image, honestly labeled as not a heatmap).
-- Screenshots to `Portfolio/source-assets/FORGE/`, README.md for the indexer.
+- Degradation curve needs re-measuring against EfficientNet-B0; the site
+  currently labels the chart as measured on the previous model.
+- StyleGAN3 at 0.515 is the weakest trained-on family and has not been
+  investigated since the backbone change.
+- Saliency heatmap: not implemented. The panel shows the resized input
+  image, labelled as not a heatmap.
+- Screenshots to `Portfolio/source-assets/FORGE/`.
