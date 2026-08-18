@@ -1,0 +1,15 @@
+{
+  "id": "johnandreimartinez/forge-backbone-compare",
+  "title": "forge-backbone-compare",
+  "code_file": "phase2_backbones.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "dataset_sources": [
+    "johnandreimartinez/forge-normalized-v1"
+  ],
+  "competition_sources": [],
+  "kernel_sources": []
+}
